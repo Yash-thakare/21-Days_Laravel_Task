@@ -1,0 +1,136 @@
+How to Create REST APIs Using Laravel
+
+ run the command -> laravel new laravel-12-rest-api
+-------------------------------------cd laravel-12-rest-api
+*******Steup Database Configuration****** 
+then create model name Project ------> php artisan make:model Project --migration
+
+add coloumn in database migration 
+
+            $table->id();
+            $table->string('name');
+            $table->text('description');
+            $table->timestamps();
+
+then run the command --> php artisan migrate
+
+Enable API and Create API resource controller
+
+command ------> php artisan install:api
+
+php artisan make:controller ProjectController --api
+
+
+
+app/Http/Controllers/ProjectController.php
+
+
+
+<?php
+ 
+namespace App\Http\Controllers;
+ 
+use Illuminate\Http\Request;
+use App\Models\Project;
+ 
+class ProjectController extends Controller
+{
+    /**
+     * Display a listing of the resource.
+     */
+    public function index()
+    {
+        $projects = Project::get();
+        return response()->json($projects);
+    }
+ 
+    /**
+     * Store a newly created resource in storage.
+     */
+    public function store(Request $request)
+    {
+        $project = new Project();
+        $project->name = $request->name;
+        $project->description = $request->description;
+        $project->save();
+        return response()->json($project);
+    }
+ 
+    /**
+     * Display the specified resource.
+     */
+    public function show(string $id)
+    {
+        $project = Project::find($id);
+        return response()->json($project);
+    }
+ 
+    /**
+     * Update the specified resource in storage.
+     */
+    public function update(Request $request, string $id)
+    {
+        $project = Project::find($id);
+        $project->name = $request->name;
+        $project->description = $request->description;
+        $project->save();
+        return response()->json($project);
+    }
+ 
+    /**
+     * Remove the specified resource from storage.
+     */
+    public function destroy(string $id)
+    {
+        Project::destroy($id);
+        return response()->json(['message' => 'Deleted']);
+    }
+}
+
+
+add route 
+
+ register the API resource routes:
+
+
+routes/api.php
+
+
+<?php
+ 
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\ProjectController;
+ 
+Route::get('/user', function (Request $request) {
+    return $request->user();
+})->middleware('auth:sanctum');
+ 
+Route::apiResource('projects', ProjectController::class);
+
+
+project run 
+
+php artisan serve
+
+by using test api by using get , post , delete, patch
+
+get -  http://127.0.0.1:8001/api/projects
+
+post - http://127.0.0.1:8001/api/projects 
+
+add data just like that 
+{
+    "name": " mscddndbdj jdbcdvcddcndvcdd c gosl",
+   "description": "mkkd dhdbd hbhd hbd ddhvbd chdvdc "
+}
+
+Patch -   http://127.0.0.1:8001/api/projects/8
+
+{
+    "id": 8,
+    "name": "mscddndbdj jdbcdvcddcndvcdd c gosl",
+    "description": "mkkd dhdbd hbhd hbd ddhvbd chdvdc"
+}
+
+Delete - http://127.0.0.1:8001/api/projects/8 
