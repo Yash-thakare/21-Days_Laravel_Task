@@ -1,0 +1,193 @@
+jwt token 
+
+create a laravel project in cli 
+
+****composer create-project laravel/laravel  laravel-jwt-auth
+
+****cd laravel-jwt-auth
+**** code .
+
+****Php artisan serve
+
+
+****create a  database  
+    table _name= laravel_jwt-token
+
+
+****add in .env file
+
+
+***php artisan migrate
+
+**** serch on google jwt auth docs
+
+----------------------------------------------------------------------------------------------
+***composer require tymon/jwt-auth 
+or 
+**** composer require tymon/jwt-auth  --ignore-platform-reqs
+
+add in cli 
+
+add thats provider name in config/app.php
+
+Tymon\JWTAuth\Providers\LaravelServiceProvider::class,
+
+
+
+add thats alasis  name in config/app.php
+
+
+'JWTAuth'=>Tymon\JWTAuth\Facades\JWTAuth::class, 
+'JWTAuthFactory'=>Tymon\JWTAuth\Facades\JWTAuthFactory::class,
+
+
+
+***add in cli -- 
+php artisan vendor:publish --provider="Tymon\JWTAuth\Providers\LaravelServiceProvider  
+
+
+***create jwt token  php artisan jwt:secret
+
+----------------------------------------------------------------------------------------------
+
+
+add in  Model\User.php
+
+
+use Tymon\JWTAuth\Contracts\JWTSubject;
+ add class User extends Authenticatable implements JWTSubject
+
+Add two methods getJWTIdentifier() , getJWTCustomClaims()
+
+
+Add guard in config\auth.php
+
+
+
+make controller  php artisan make:controller AuthController
+
+Open the AuthController.php file
+
+use Auth;
+
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------
+the crete route 
+
+add controller file in app.php 
+use App\Http\Controllers\AuthController;
+
+
+Route::group(['middleware'=> 'api','prefix'=>'auth'], function($router){
+
+Route::post('/register',[AuthController::class,'register']);
+Route::post('/login',[AuthController::class,'login']);
+Route::post('/profile',[AuthController::class,'profile']);
+Route::post('/logout',[AuthController::class,'logout']);
+
+
+
+}
+);
+
+
+
+--------------------------------------------------------------------------------------------------
+
+Inside the AuthController
+
+use Auth;
+use Validator;
+public function _construct(){
+
+$this->middleware('auth:api',['except'=>['login', 'register']]);
+
+}
+
+public function register($Request $request){
+$validator =Validator::make($request->all,[
+'name'=>'required',
+'email'=>'required|string|email|unique:users',
+'password'=>'required|string|confirmed|min:6'
+
+
+]);
+
+if($validator->fails(){
+return response()->json($validator->errors()->toJson(),400);
+}
+
+$user =User::create(array_merge(
+$validator->validated(),
+['password'=>bcrypt($request->password)]
+));
+return response()-> json([
+'message'=>'User sucessfully registered',
+'user'=>$user
+
+],201);
+
+}
+
+
+public function login($Request $request){
+$validator =Validator::make($request->all,[
+
+'email'=>'required|email',
+'password'=>'required|string|min:6']);
+
+if($validator->fails(){
+return response()->json($validator->errors(),422);
+}
+if(!$token =auth()->attempt($validator->validated())){
+return reponse()->json(['error'=>'Unauthorized'],401);
+}
+return $this->createNewToken($token);
+}
+
+public function createNewToken($token){
+
+return reponse()->json([
+
+'access_token'=>$token,
+'token_type'=>'bearer',
+'expires_in'=>auth()->factory()->getTTL()*60,
+'user'=>auth()->user()
+
+
+]);
+}
+
+
+public function profile(){
+return response()->json(auth()->user());
+}
+
+public function logout(){
+auth()->logout();
+return response()-> json([
+'message'=>'User log out']);
+}
+
+
+}--class end 
+
+----------------------------------------------------------------------------------------
+to open the postman as per link  http://127.0.0.1:8000/api/auth/register
+
+add in body in form data 
+
+name -> john emdia
+email -> john@gmail.com
+password  -> 123456
+password_confirmation -> 123456
+
+-------------------------------------------------------------------------------------------------
+login in postman
+http://127.0.0.1:8000/api/auth/login
+profile in postman 
+http://127.0.0.1:8000/api/auth/profile
+logout  in postman
+http://127.0.0.1:8000/api/auth/logout ----> passs token
+
+Authorization ->> Bear Tokens applicable
