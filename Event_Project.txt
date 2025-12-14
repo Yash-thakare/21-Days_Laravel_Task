@@ -1,0 +1,722 @@
+Project Structure Overview: Dynamic Event Management System with Embedded Code
+
+event-backend/ (Laravel)
+event-frontend/ (React)
+
+composer create-project laravel/laravel event-backend
+cd event-backend
+
+php artisan key:generate
+
+
+----------------------------------------------- step up db----------------------------------------------------
+
+ 
+php artisan make:migration create_events_table
+
+
+
+
+
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('events', function (Blueprint $table) {
+            $table->id();
+            $table->string('title');
+            $table->text('description');
+            $table->date('date');
+            $table->time('time')->nullable();
+            $table->string('location')->nullable();
+            $table->timestamps();
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('events');
+    }
+};
+
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+php artisan migrate
+
+
+php artisan make:model Event
+
+
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Event extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'title',
+        'description',
+        'date',
+        'time',
+        'location',
+    ];
+
+    protected $casts = [
+        'date' => 'date',
+        'time' => 'datetime:H:i',
+    ];
+}
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+php artisan make:controller EventController --resource
+
+Replace entire content of ------------------app/Http/Controllers/EventController.php
+
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Event;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
+
+class EventController extends Controller
+{
+
+
+
+    public function index(Request $request)
+    {
+        $events = Event::orderBy('date', 'asc')->orderBy('created_at', 'desc')->get();
+        if ($request->is('admin/events')) {
+            return view('admin.events.index', compact('events'));
+        }
+        return response()->json($events);
+    }
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+    public function store(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'title' => 'required|string|max:255',
+            'description' => 'required|string',
+            'date' => 'required|date|after_or_equal:today',
+            'time' => 'nullable|date_format:H:i',
+            'location' => 'nullable|string|max:255',
+        ]);
+
+        if ($validator->fails()) {
+            return redirect()->back()->withErrors($validator)->withInput();
+        }
+
+        Event::create($request->all());
+        return redirect()->route('admin.events.index')->with('success', 'Event added!');
+    }
+
+
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+    public function edit(Event $event)
+    {
+        return view('admin.edit', compact('event'));
+    }
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+
+    public function update(Request $request, Event $event)
+    {
+        $validator = Validator::make($request->all(), [
+            'title' => 'required|string|max:255',
+            'description' => 'required|string',
+            'date' => 'required|date',
+            'time' => 'nullable|date_format:H:i',
+            'location' => 'nullable|string|max:255',
+        ]);
+
+        if ($validator->fails()) {
+            return redirect()->back()->withErrors($validator)->withInput();
+        }
+
+        $event->update($request->all());
+        return redirect()->route('admin.events.index')->with('success', 'Event updated!');
+    }
+
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+
+    public function destroy(Event $event)
+    {
+        $event->delete();
+        return redirect()->route('admin.events.index')->with('success', 'Event deleted!');
+    }
+}
+
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Edit routes/web.php (replace existing content):
+
+
+
+
+<?php
+
+use App\Http\Controllers\EventController;
+use Illuminate\Support\Facades\Route;
+
+Route::get('/', function () {
+    return view('welcome');
+});
+
+Route::prefix('admin')->name('admin.')->group(function () {
+    Route::get('/events', [EventController::class, 'index'])->name('events.index');
+    Route::get('/events/create', function () {
+        return view('admin.create');
+    })->name('events.create');
+    Route::post('/events', [EventController::class, 'store'])->name('events.store');
+    Route::get('/events/{event}/edit', [EventController::class, 'edit'])->name('events.edit');
+    Route::put('/events/{event}', [EventController::class, 'update'])->name('events.update');
+    Route::delete('/events/{event}', [EventController::class, 'destroy'])->name('events.destroy');
+});
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+api.php add this code 
+
+<?php
+
+use App\Http\Controllers\EventController;
+use Illuminate\Support\Facades\Route;
+
+Route::apiResource('events', EventController::class)->only(['index']);
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Test Step 2: Start server with php artisan serve. Visit http://localhost:8000/api/events – should return JSON [] (empty array). Visit http://localhost:8000/admin/events – should error (views not yet created, but routes work).
+
+
+
+------------------------------------------------------------------------------------------------------------------------------------ BLADE FILES --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Step 3: Create Admin Panel Views (Blade Templates)
+Create resources/views/layouts/app.blade.php:
+
+
+Create Admin Index View (List Events):
+Create resources/views/admin/events/index.blade.php:
+
+
+Create Admin Create View (Add Event Form):
+Create resources/views/admin/create.blade.php:
+
+
+
+Create Admin Edit View (Edit Event Form):
+Create resources/views/admin/edit.blade.php:
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+Step 4: Seed Sample Data
+
+------------php artisan make:seeder EventSeeder
+
+Edit database/seeders/EventSeeder.php:
+
+<?php
+
+namespace Database\Seeders;
+
+use Illuminate\Database\Seeder;
+use App\Models\Event;
+
+class EventSeeder extends Seeder
+{
+    public function run(): void
+    {
+        // Past Events (before 2025-12-14)
+        Event::create([
+            'title' => 'Past Concert',
+            'description' => 'Rock concert recap',
+            'date' => '2025-12-01',
+            'time' => '20:00:00',
+            'location' => 'City Hall'
+        ]);
+        Event::create([
+            'title' => 'Past Workshop',
+            'description' => 'Coding workshop held',
+            'date' => '2025-12-10',
+            'time' => '14:00:00',
+            'location' => 'Online'
+        ]);
+        Event::create([
+            'title' => 'Past Meetup',
+            'description' => 'Tech meetup summary',
+            'date' => '2025-12-12',
+            'location' => 'Downtown'
+        ]);
+
+        // Today’s Events (2025-12-14)
+        Event::create([
+            'title' => 'Today Seminar',
+            'description' => 'AI seminar today',
+            'date' => '2025-12-14',
+            'time' => '10:00:00',
+            'location' => 'University'
+        ]);
+        Event::create([
+            'title' => 'Today Party',
+            'description' => 'Holiday party tonight',
+            'date' => '2025-12-14',
+            'time' => '19:00:00',
+            'location' => 'Club XYZ'
+        ]);
+        Event::create([
+            'title' => 'Today Demo',
+            'description' => 'Product demo session',
+            'date' => '2025-12-14',
+            'location' => 'Office'
+        ]);
+
+        // Future Events (after 2025-12-14)
+        Event::create([
+            'title' => 'Future Conference',
+            'description' => 'Tech conference upcoming',
+            'date' => '2025-12-20',
+            'time' => '09:00:00',
+            'location' => 'Convention Center'
+        ]);
+        Event::create([
+            'title' => 'Future Webinar',
+            'description' => 'Online webinar next week',
+            'date' => '2025-12-21',
+            'time' => '16:00:00',
+            'location' => 'Virtual'
+        ]);
+        Event::create([
+            'title' => 'Future Gala',
+            'description' => 'Annual gala event',
+            'date' => '2025-12-25',
+            'time' => '18:00:00',
+            'location' => 'Grand Hotel'
+        ]);
+    }
+}
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Update Database Seeder to Call EventSeeder:
+Edit database/seeders/DatabaseSeeder.php:
+
+
+
+<?php
+
+namespace Database\Seeders;
+
+use Illuminate\Database\Seeder;
+
+class DatabaseSeeder extends Seeder
+{
+    public function run(): void
+    {
+        $this->call([
+            EventSeeder::class,
+        ]);
+    }
+}
+
+
+
+
+php artisan db:seed  --- http://localhost:8000/admin/events
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+resources/views/layouts/app.blade.php:
+
+<!DOCTYPE html>
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Event Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-4">
+        @yield('content')
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Create resources/views/admin/events/index.blade.php:
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+@extends('layouts.app')
+
+@section('content')
+<div class="row">
+    <div class="col-12">
+        <h1>Admin: Events Management</h1>
+        <a href="{{ route('admin.events.create') }}" class="btn btn-primary mb-3">Add Event</a>
+        @if(session('success'))
+            <div class="alert alert-success">{{ session('success') }}</div>
+        @endif
+        @if($errors->any())
+            <div class="alert alert-danger">
+                <ul class="mb-0">
+                    @foreach($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Title</th>
+                    <th>Description</th>
+                    <th>Date</th>
+                    <th>Time</th>
+                    <th>Location</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse($events as $event)
+                <tr>
+                    <td>{{ $event->id }}</td>
+                    <td>{{ $event->title }}</td>
+                    <td>{{ Str::limit($event->description, 50) }}</td>
+                    <td>{{ $event->date }}</td>
+                    <td>{{ $event->time ? $event->time->format('H:i') : 'N/A' }}</td>
+                    <td>{{ $event->location ?? 'N/A' }}</td>
+                    <td>
+                        <a href="{{ route('admin.events.edit', $event) }}" class="btn btn-sm btn-warning">Edit</a>
+                        <form method="POST" action="{{ route('admin.events.destroy', $event) }}" style="display: inline;" onsubmit="return confirm('Are you sure?')">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                @empty
+                <tr><td colspan="7" class="text-center">No events found.</td></tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+</div>
+@endsection
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+resources/views/admin/create.blade.php:
+
+@extends('layouts.app')
+
+@section('content')
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <h1>Add New Event</h1>
+        <form method="POST" action="{{ route('admin.events.store') }}">
+            @csrf
+            <div class="mb-3">
+                <label for="title" class="form-label">Title</label>
+                <input type="text" class="form-control @error('title') is-invalid @enderror" id="title" name="title" value="{{ old('title') }}" required>
+                @error('title')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
+            </div>
+            <div class="mb-3">
+                <label for="description" class="form-label">Description</label>
+                <textarea class="form-control @error('description') is-invalid @enderror" id="description" name="description" rows="3" required>{{ old('description') }}</textarea>
+                @error('description')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
+            </div>
+            <div class="mb-3">
+                <label for="date" class="form-label">Date</label>
+                <input type="date" class="form-control @error('date') is-invalid @enderror" id="date" name="date" value="{{ old('date') }}" required>
+                @error('date')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
+            </div>
+            <div class="mb-3">
+                <label for="time" class="form-label">Time (Optional)</label>
+                <input type="time" class="form-control" id="time" name="time" value="{{ old('time') }}">
+            </div>
+            <div class="mb-3">
+                <label for="location" class="form-label">Location (Optional)</label>
+                <input type="text" class="form-control" id="location" name="location" value="{{ old('location') }}">
+            </div>
+            <button type="submit" class="btn btn-primary">Add Event</button>
+            <a href="{{ route('admin.events.index') }}" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</div>
+@endsection
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+resources/views/admin/edit.blade.php:
+
+
+@extends('layouts.app')
+
+@section('content')
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <h1>Edit Event</h1>
+        <form method="POST" action="{{ route('admin.events.update', $event) }}">
+            @csrf
+            @method('PUT')
+            <div class="mb-3">
+                <label for="title" class="form-label">Title</label>
+                <input type="text" class="form-control @error('title') is-invalid @enderror" id="title" name="title" value="{{ $event->title }}" required>
+                @error('title')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
+            </div>
+            <div class="mb-3">
+                <label for="description" class="form-label">Description</label>
+                <textarea class="form-control @error('description') is-invalid @enderror" id="description" name="description" rows="3" required>{{ $event->description }}</textarea>
+                @error('description')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
+            </div>
+            <div class="mb-3">
+                <label for="date" class="form-label">Date</label>
+                <input type="date" class="form-control @error('date') is-invalid @enderror" id="date" name="date" value="{{ $event->date }}" required>
+                @error('date')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
+            </div>
+            <div class="mb-3">
+                <label for="time" class="form-label">Time (Optional)</label>
+                <input type="time" class="form-control" id="time" name="time" value="{{ $event->time ? $event->time->format('H:i') : '' }}">
+            </div>
+            <div class="mb-3">
+                <label for="location" class="form-label">Location (Optional)</label>
+                <input type="text" class="form-control" id="location" name="location" value="{{ $event->location }}">
+            </div>
+            <button type="submit" class="btn btn-primary">Update Event</button>
+            <a href="{{ route('admin.events.index') }}" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</div>
+@endsection
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+: Initialize the React Frontend Project 
+
+npx create-react-app event-frontend
+cd event-frontend
+
+
+Install Dependencies
+npm install axios date-fns
+
+
+Replace Main App Component:
+Edit src/App.js:
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { isToday, isFuture, isPast, format } from 'date-fns';
+import './App.css';
+
+const API_URL = 'http://localhost:8000/api/events';
+
+function App() {
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchEvents = async () => {
+    try {
+      const response = await axios.get(API_URL);
+      setEvents(response.data);
+    } catch (error) {
+      console.error('Error fetching events:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchEvents();
+  }, []);
+
+  const categorizeEvents = (events) => {
+    return {
+      today: events.filter(event => isToday(new Date(event.date))),
+      future: events.filter(event => isFuture(new Date(event.date))),
+      past: events.filter(event => isPast(new Date(event.date))),
+    };
+  };
+
+  const { today, future, past } = categorizeEvents(events);
+
+  const renderSection = (title, eventList) => (
+    <div className="section">
+      <h2>{title} ({eventList.length})</h2>
+      {eventList.length > 0 ? (
+        eventList.slice(0, 3).map(event => (
+          <div key={event.id} className="event-card">
+            <h3>{event.title}</h3>
+            <p>{event.description}</p>
+            <p><strong>Date:</strong> {format(new Date(event.date), 'yyyy-MM-dd')}</p>
+            {event.time && <p><strong>Time:</strong> {format(new Date(`${event.date}T${event.time}`), 'HH:mm')}</p>}
+            {event.location && <p><strong>Location:</strong> {event.location}</p>}
+          </div>
+        ))
+      ) : (
+        <p>No events in this category.</p>
+      )}
+      {eventList.length > 3 && <p class="more">... and {eventList.length - 3} more</p>}
+    </div>
+  );
+
+  if (loading) return <div className="loading">Loading events...</div>;
+
+  return (
+    <div className="App">
+      <header>
+        <h1>Dynamic Event Management System</h1>
+        <button onClick={fetchEvents}>Refresh Events</button>
+      </header>
+      {renderSection("Today's Events", today)}
+      {renderSection("Future Events", future)}
+      {renderSection("Past Events", past)}
+    </div>
+  );
+}
+
+export default App;
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Add Styling:
+Edit src/App.css:
+
+.App {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+  font-family: Arial, sans-serif;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #eee;
+}
+
+header h1 {
+  margin: 0;
+  color: #333;
+}
+
+button {
+  padding: 10px 20px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+button:hover {
+  background-color: #0056b3;
+}
+
+.section {
+  margin-bottom: 40px;
+  padding: 20px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background-color: #f9f9f9;
+}
+
+.section h2 {
+  color: #007bff;
+  border-bottom: 1px solid #007bff;
+  padding-bottom: 10px;
+}
+
+.event-card {
+  background: white;
+  padding: 15px;
+  margin-bottom: 10px;
+  border-radius: 5px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.event-card h3 {
+  margin: 0 0 10px;
+  color: #333;
+}
+
+.event-card p {
+  margin: 5px 0;
+  color: #666;
+}
+
+.more {
+  color: #999;
+  font-style: italic;
+}
+
+.loading {
+  text-align: center;
+  font-size: 18px;
+  color: #666;
+}
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Test Step 5: Ensure backend is running (php artisan serve in backend folder). 
+Run npm start in frontend. 
+Visit http://localhost:3000 – loads 9 events, categorized (3 Today's at top, 3 Future, 3 Past at bottom), shows up to 3 per section.
+
